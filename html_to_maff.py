@@ -1,9 +1,7 @@
 from uuid import uuid1
 from collections import namedtuple
 import os
-import csv
 import glob
-import time
 import shutil
 import re
 
@@ -56,14 +54,6 @@ def _get_html_files(files_path, file_prefix="*"):
 def pack_to_maff(inp_file_with_path,
                  out_path=DEFAULT_OUTPUT_DIR,
                  temp_path=TEMP_DIR) -> str:
-    # 1) get dates +
-    # 2) copy to temp +
-    # 3) rename file +
-    # 4) rename url in file
-    # 5) pack to maff (zip) to output
-    # - # 6) copy
-    # 7) set dates
-    # 8) clean temp
     stat = os.stat(inp_file_with_path)
     inp_file = inp_file_with_path.split(os.path.sep)[-1]
     out_filename = "".join(filter(lambda c: c not in RESERVED_CHAR,
@@ -94,6 +84,7 @@ def pack_to_maff(inp_file_with_path,
                         'zip',
                         os.path.abspath(TEMP_DIR))
     os.rename(os.path.join(out_path, out_filename + ".zip"), os.path.join(out_path, out_filename))
+    os.utime(os.path.join(out_path, out_filename), (stat.st_atime, stat.st_mtime))
     shutil.rmtree(os.path.join(temp_path, "000", INDEX_HTML_PREFIX + DIR_FILES_POSTFIX))
     os.remove(os.path.join(temp_path, "000", INDEX_HTML_PREFIX + INDEX_HTML_POSTFIX))
 
@@ -125,7 +116,7 @@ if __name__ == '__main__':
         f.write(INDEX_RDF_DATA)
 
     logs = []
-    for html_file in _get_html_files("test"):
+    for html_file in _get_html_files("."):
         original_filename = html_file.split(os.path.sep)[-1]
         status, message, new_filename = "OK", "", ""
         try:
@@ -137,5 +128,4 @@ if __name__ == '__main__':
         print(_format_log_row_to_txt(logs[-1]), end="")
 
     save_log(DEFAULT_OUTPUT_DIR, logs)
-    input("press enter")
     shutil.rmtree(TEMP_DIR)
