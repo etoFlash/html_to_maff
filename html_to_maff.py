@@ -5,6 +5,7 @@ import csv
 import glob
 import time
 import shutil
+import re
 
 
 DEFAULT_OUTPUT_DIR = "maff_output"
@@ -52,7 +53,9 @@ def _get_html_files(files_path, file_prefix="*"):
             yield file
 
 
-def pack_to_maff(inp_file_with_path, out_path=DEFAULT_OUTPUT_DIR, temp_path=TEMP_DIR) -> str:
+def pack_to_maff(inp_file_with_path,
+                 out_path=DEFAULT_OUTPUT_DIR,
+                 temp_path=TEMP_DIR) -> str:
     # 1) get dates +
     # 2) copy to temp +
     # 3) rename file +
@@ -65,12 +68,34 @@ def pack_to_maff(inp_file_with_path, out_path=DEFAULT_OUTPUT_DIR, temp_path=TEMP
     inp_file = inp_file_with_path.split(os.path.sep)[-1]
     out_filename = "".join(filter(lambda c: c not in RESERVED_CHAR,
                                   inp_file[:inp_file.rfind(".")]))[:145]
+
     assert len(out_filename) > 0, ERR_EMPTY_FILENAME
     out_filename = out_filename[:145] + ".maff"
     dir_files = inp_file_with_path[:inp_file_with_path.rfind(".")] + DIR_FILES_POSTFIX
+
     assert os.path.isdir(dir_files), ERR_DIR_NOT_FOUND.format(dir_files)
-    shutil.copy(inp_file_with_path, os.path.join(temp_path, INDEX_HTML_PREFIX + INDEX_HTML_POSTFIX))
-    shutil.copytree(dir_files, os.path.join(temp_path, INDEX_HTML_PREFIX + DIR_FILES_POSTFIX))
+    assert not os.path.exists(
+        os.path.join(out_path, out_filename)
+    ), ERR_MAFF_EXISTS.format(out_filename)
+
+    shutil.copy(inp_file_with_path,
+                os.path.join(temp_path, "000", INDEX_HTML_PREFIX + INDEX_HTML_POSTFIX))
+    shutil.copytree(dir_files, os.path.join(temp_path, "000", INDEX_HTML_PREFIX + DIR_FILES_POSTFIX))
+
+    with open(os.path.join(temp_path, "000", INDEX_HTML_PREFIX + INDEX_HTML_POSTFIX), encoding="utf-8") as f:
+        data = f.read()
+
+    data = re.sub(r"\"[^ ]*_files/", f"\"{INDEX_HTML_PREFIX}{DIR_FILES_POSTFIX}/", data)
+
+    with open(os.path.join(temp_path, "000", INDEX_HTML_PREFIX + INDEX_HTML_POSTFIX), "w", encoding="utf-8") as f:
+        f.write(data)
+
+    shutil.make_archive(os.path.abspath(os.path.join(out_path, out_filename)),
+                        'zip',
+                        os.path.abspath(TEMP_DIR))
+    os.rename(os.path.join(out_path, out_filename + ".zip"), os.path.join(out_path, out_filename))
+    shutil.rmtree(os.path.join(temp_path, "000", INDEX_HTML_PREFIX + DIR_FILES_POSTFIX))
+    os.remove(os.path.join(temp_path, "000", INDEX_HTML_PREFIX + INDEX_HTML_POSTFIX))
 
     return out_filename
 
@@ -95,7 +120,8 @@ if __name__ == '__main__':
     if not os.path.exists(DEFAULT_OUTPUT_DIR):
         os.mkdir(DEFAULT_OUTPUT_DIR)
     os.mkdir(TEMP_DIR)
-    with open(os.path.join(TEMP_DIR, INDEX_RDF_FILENAME), "w") as f:
+    os.mkdir(os.path.join(TEMP_DIR, "000"))
+    with open(os.path.join(TEMP_DIR, "000", INDEX_RDF_FILENAME), "w") as f:
         f.write(INDEX_RDF_DATA)
 
     logs = []
